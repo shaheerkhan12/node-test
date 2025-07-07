@@ -44,8 +44,7 @@ async function modNotesPlugin(fastify, options) {
       onRequest: function (request, reply, next) { next(); },
       preHandler: function (request, reply, next) { next(); }
     },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
+    staticCSP: false,
     transformSpecification: (swaggerObject, request, reply) => {
       return swaggerObject;
     },
