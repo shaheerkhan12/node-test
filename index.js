@@ -11,7 +11,7 @@ async function modNotesPlugin(fastify, options) {
   await initializeDatabase(fastify, options);
   
   // Initialize vector service
-  await vectorService.initialize();
+//   await vectorService.initialize();
   
   // Register Swagger for API documentation
   await fastify.register(require('@fastify/swagger'), {
