@@ -66,13 +66,14 @@ async function startServer() {
       });
     });
 
-    // CORS handling for development
-    if (process.env.NODE_ENV === 'development') {
-      await app.register(require('@fastify/cors'), {
-        origin: true,
-        credentials: true
-      });
-    }
+    // CORS handling
+    await app.register(require('@fastify/cors'), {
+      origin: true,
+      methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      credentials: true,
+      maxAge: 86400
+    });
 
     // Start the server
     const port = process.env.PORT || 3000;

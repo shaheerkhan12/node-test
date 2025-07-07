@@ -29,7 +29,8 @@ async function modNotesPlugin(fastify, options) {
         { name: 'Notes', description: 'Note management operations' },
         { name: 'Vector Search', description: 'Semantic search operations' }
       ]
-    }
+    },
+    exposeRoute: true
   });
 
   // Register Swagger UI
