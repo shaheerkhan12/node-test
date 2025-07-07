@@ -21,8 +21,8 @@ async function modNotesPlugin(fastify, options) {
         description: 'AI-First note management system with vector search capabilities',
         version: '1.0.0'
       },
-      host: process.env.API_HOST || 'localhost',
-      schemes: ['http', 'https'],
+      host: process.env.API_HOST || 'localhost:3000',
+      schemes: ['http'],
       consumes: ['application/json'],
       produces: ['application/json'],
       tags: [
