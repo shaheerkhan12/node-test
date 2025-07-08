@@ -1,9 +1,12 @@
-const { expect } = require('chai');
+const chai = require('chai');
+const chaiAsPromised = require('chai-as-promised');
 const sinon = require('sinon');
 const mongoose = require('mongoose');
 const Note = require('../../models/Note');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
+chai.use(chaiAsPromised);
+const { expect } = chai;
 describe('Note Service Unit Tests', () => {
   let mongoServer;
   let connection;

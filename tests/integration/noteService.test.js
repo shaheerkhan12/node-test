@@ -1,16 +1,28 @@
-const { expect } = require('chai');
+const chai = require('chai');
+const chaiAsPromised = require('chai-as-promised');
 const mongoose = require('mongoose');
 const Note = require('../../models/Note');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+
+chai.use(chaiAsPromised);
+const { expect } = chai;
 
 describe('Note Service Integration Tests', () => {
   let mongoServer;
   let connection;
 
   before(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    connection = await mongoose.connect(mongoUri);
+    try {
+      mongoServer = await MongoMemoryServer.create();
+      const mongoUri = mongoServer.getUri();
+      connection = await mongoose.connect(mongoUri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true
+      });
+    } catch (error) {
+      console.error('Failed to start test database:', error);
+      throw error;
+    }
   });
 
   after(async () => {
