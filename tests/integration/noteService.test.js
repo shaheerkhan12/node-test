@@ -1,11 +1,6 @@
-const chai = require('chai');
-const chaiAsPromised = require('chai-as-promised');
 const mongoose = require('mongoose');
 const Note = require('../../models/Note');
 const { MongoMemoryServer } = require('mongodb-memory-server');
-
-chai.use(chaiAsPromised);
-const { expect } = chai;
 
 describe('Note Service Integration Tests', () => {
   let mongoServer;
