@@ -102,6 +102,18 @@ describe('NoteService', () => {
 
       expect(result.tags).toEqual(['test', 'unit']);
     });
+
+    it('should handle very long title and body', async () => {
+      const noteData = {
+        title: 'A'.repeat(200),
+        body: 'B'.repeat(1000),
+        tags: ['test']
+      };
+
+      const result = await noteService.createNote(noteData);
+      expect(result.title.length).toBe(200);
+      expect(result.body.length).toBe(1000);
+    });
   });
 
   describe('getAllNotes', () => {
@@ -150,6 +162,12 @@ describe('NoteService', () => {
       expect(result[1].title).toBe('Note 2');
       expect(result[2].title).toBe('Note 3');
     });
+
+    it('should handle empty collection', async () => {
+      await Note.deleteMany({});
+      const result = await noteService.getAllNotes();
+      expect(result).toHaveLength(0);
+    });
   });
 
   describe('getNoteById', () => {
@@ -180,6 +198,11 @@ describe('NoteService', () => {
     it('should return null when invalid ID format is provided', async () => {
       const result = await noteService.getNoteById('invalid-id');
 
+      expect(result).toBeNull();
+    });
+
+    it('should handle undefined ID', async () => {
+      const result = await noteService.getNoteById(undefined);
       expect(result).toBeNull();
     });
   });
@@ -233,6 +256,105 @@ describe('NoteService', () => {
       const result = await noteService.searchNotes('programming', { limit: 1 });
 
       expect(result).toHaveLength(1);
+    });
+
+    it('should handle special characters in search query', async () => {
+      await Note.create({
+        title: 'Special #$%^',
+        body: 'Content with @#$%^'
+      });
+
+      const result = await noteService.searchNotes('#$%^', { useRegex: true });
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('updateNote', () => {
+    let testNote;
+
+    beforeEach(async () => {
+      testNote = await Note.create({
+        title: 'Original Title',
+        body: 'Original Body',
+        tags: ['original']
+      });
+    });
+
+    it('should update specific fields', async () => {
+      const result = await noteService.updateNote(testNote._id.toString(), {
+        title: 'Updated Title'
+      });
+
+      expect(result.title).toBe('Updated Title');
+      expect(result.body).toBe('Original Body');
+      expect(result.tags).toEqual(['original']);
+    });
+
+    it('should handle empty update object', async () => {
+      const result = await noteService.updateNote(testNote._id.toString(), {});
+      expect(result.title).toBe('Original Title');
+      expect(result.body).toBe('Original Body');
+    });
+  });
+
+  describe('deleteNote', () => {
+    let testNote;
+
+    beforeEach(async () => {
+      testNote = await Note.create({
+        title: 'To Delete',
+        body: 'This note will be deleted'
+      });
+    });
+
+    it('should delete existing note', async () => {
+      const result = await noteService.deleteNote(testNote._id.toString());
+      expect(result).toBe(true);
+
+      const deleted = await Note.findById(testNote._id);
+      expect(deleted).toBeNull();
+    });
+
+    it('should return false for non-existent note', async () => {
+      const fakeId = new mongoose.Types.ObjectId().toString();
+      const result = await noteService.deleteNote(fakeId);
+      expect(result).toBe(false);
+    });
+
+    it('should handle invalid ID format', async () => {
+      const result = await noteService.deleteNote('invalid-id');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getNotesStats', () => {
+    beforeEach(async () => {
+      await Note.deleteMany({});
+      
+      // Create some test notes with different dates
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+      
+      await Note.create([
+        { title: 'Recent Note 1', body: 'Body 1', createdAt: now },
+        { title: 'Recent Note 2', body: 'Body 2', createdAt: now },
+        { title: 'Old Note', body: 'Body 3', createdAt: weekAgo }
+      ]);
+    });
+
+    it('should return correct statistics', async () => {
+      const stats = await noteService.getNotesStats();
+      
+      expect(stats).toHaveProperty('totalNotes', 3);
+      expect(stats).toHaveProperty('recentNotes', 2);
+    });
+
+    it('should handle empty collection', async () => {
+      await Note.deleteMany({});
+      const stats = await noteService.getNotesStats();
+      
+      expect(stats.totalNotes).toBe(0);
+      expect(stats.recentNotes).toBe(0);
     });
   });
 
