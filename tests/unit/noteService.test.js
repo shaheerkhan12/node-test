@@ -183,7 +183,7 @@ describe('Note Service Unit Tests', () => {
           { body: /javascript/i }
         ]
       });
-      expect(notes).to.have.lengthOf(2);
+      expect(notes).toHaveLength(2);
     });
   });
 });
