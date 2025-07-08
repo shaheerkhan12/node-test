@@ -269,33 +269,6 @@ describe('NoteService', () => {
     });
   });
 
-  describe('updateNote', () => {
-    let testNote;
-
-    beforeEach(async () => {
-      testNote = await Note.create({
-        title: 'Original Title',
-        body: 'Original Body',
-        tags: ['original']
-      });
-    });
-
-    it('should update specific fields', async () => {
-      const result = await noteService.updateNote(testNote._id.toString(), {
-        title: 'Updated Title'
-      });
-
-      expect(result.title).toBe('Updated Title');
-      expect(result.body).toBe('Original Body');
-      expect(result.tags).toEqual(['original']);
-    });
-
-    it('should handle empty update object', async () => {
-      const result = await noteService.updateNote(testNote._id.toString(), {});
-      expect(result.title).toBe('Original Title');
-      expect(result.body).toBe('Original Body');
-    });
-  });
 
   describe('deleteNote', () => {
     let testNote;
@@ -419,4 +392,23 @@ describe('NoteService', () => {
 
       const result = await noteService.updateNote(testNote._id.toString(), updateData);
 
-      expect(result.title).toBe('Updated Title
+      expect(result.title).toBe('Updated Title');
+      
+      it('should filter out empty tags during update', async () => {
+        const updateData = {
+          tags: ['valid', '', '  ', 'also-valid']
+        };
+        
+        const result = await noteService.updateNote(testNote._id.toString(), updateData);
+        expect(result.tags).toEqual(['valid', 'also-valid']);
+      });
+      
+      it('should handle undefined tags during update', async () => {
+        const updateData = {
+          title: 'New Title',
+          tags: undefined
+        };
+        
+        const result = await noteService.updateNote(testNote._id.toString(), updateData);
+        expect(result.tags).toEqual(['original']); // Should keep existing tags
+      });
