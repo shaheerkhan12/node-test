@@ -67,6 +67,8 @@ async function startServer() {
     });
 
     // CORS handling
+    if (process.env.NODE_ENV === 'development') {
+
     await app.register(require('@fastify/cors'), {
         origin: true,
         methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
@@ -74,6 +76,7 @@ async function startServer() {
         credentials: true,
         maxAge: 86400
     });
+}
 
     // Start the server
     const port = process.env.PORT || 3000;
