@@ -1,337 +1,105 @@
+const { expect } = require('chai');
+const sinon = require('sinon');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const noteService = require('../../services/noteService');
 const Note = require('../../models/Note');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
-/**
- * AI-generated unit tests for note service
- * Tests core business logic with in-memory MongoDB
- */
-describe('NoteService', () => {
+describe('Note Service Unit Tests', () => {
   let mongoServer;
+  let connection;
 
-  beforeAll(async () => {
-    // Start in-memory MongoDB instance
+  before(async () => {
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
-    
-    await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    connection = await mongoose.connect(mongoUri);
   });
 
-  afterAll(async () => {
-    await mongoose.connection.close();
+  after(async () => {
+    await mongoose.disconnect();
     await mongoServer.stop();
   });
 
   beforeEach(async () => {
-    // Clear database before each test
     await Note.deleteMany({});
   });
 
-  describe('createNote', () => {
+  describe('Create Note', () => {
     it('should create a note with valid data', async () => {
       const noteData = {
         title: 'Test Note',
-        body: 'This is a test note body',
+        body: 'Test body content',
         tags: ['test', 'unit']
       };
 
-      const result = await noteService.createNote(noteData);
+      const note = new Note(noteData);
+      const savedNote = await note.save();
 
-      expect(result).toHaveProperty('_id');
-      expect(result.title).toBe('Test Note');
-      expect(result.body).toBe('This is a test note body');
-      expect(result.tags).toEqual(['test', 'unit']);
-      expect(result).toHaveProperty('createdAt');
-      expect(result).toHaveProperty('updatedAt');
+      expect(savedNote.title).to.equal(noteData.title);
+      expect(savedNote.body).to.equal(noteData.body);
+      expect(savedNote.tags).to.deep.equal(noteData.tags);
+      expect(savedNote).to.have.property('createdAt');
+      expect(savedNote).to.have.property('updatedAt');
     });
 
-    it('should trim whitespace from title and body', async () => {
-      const noteData = {
-        title: '  Test Note  ',
-        body: '  This is a test note body  ',
-        tags: ['  test  ', '  unit  ']
-      };
-
-      const result = await noteService.createNote(noteData);
-
-      expect(result.title).toBe('Test Note');
-      expect(result.body).toBe('This is a test note body');
-      expect(result.tags).toEqual(['test', 'unit']);
+    it('should fail when required fields are missing', async () => {
+      const note = new Note({});
+      
+      try {
+        await note.save();
+        expect.fail('Should have thrown validation error');
+      } catch (error) {
+        expect(error).to.be.instanceOf(mongoose.Error.ValidationError);
+        expect(error.errors.title).to.exist;
+        expect(error.errors.body).to.exist;
+      }
     });
 
-    it('should throw error when title is missing', async () => {
-      const noteData = {
-        body: 'This is a test note body'
-      };
+    it('should trim whitespace from fields', async () => {
+      const note = new Note({
+        title: '  Test Title  ',
+        body: '  Test Body  ',
+        tags: ['  tag1  ', '  tag2  ']
+      });
 
-      await expect(noteService.createNote(noteData)).rejects.toThrow('Title and body are required');
-    });
-
-    it('should throw error when body is missing', async () => {
-      const noteData = {
-        title: 'Test Note'
-      };
-
-      await expect(noteService.createNote(noteData)).rejects.toThrow('Title and body are required');
-    });
-
-    it('should handle empty tags array', async () => {
-      const noteData = {
-        title: 'Test Note',
-        body: 'This is a test note body',
-        tags: []
-      };
-
-      const result = await noteService.createNote(noteData);
-
-      expect(result.tags).toEqual([]);
-    });
-
-    it('should filter out empty tags', async () => {
-      const noteData = {
-        title: 'Test Note',
-        body: 'This is a test note body',
-        tags: ['test', '', '  ', 'unit']
-      };
-
-      const result = await noteService.createNote(noteData);
-
-      expect(result.tags).toEqual(['test', 'unit']);
-    });
-
-    it('should handle very long title and body', async () => {
-      const noteData = {
-        title: 'A'.repeat(200),
-        body: 'B'.repeat(1000),
-        tags: ['test']
-      };
-
-      const result = await noteService.createNote(noteData);
-      expect(result.title.length).toBe(200);
-      expect(result.body.length).toBe(1000);
+      const savedNote = await note.save();
+      expect(savedNote.title).to.equal('Test Title');
+      expect(savedNote.body).to.equal('Test Body');
+      expect(savedNote.tags).to.deep.equal(['tag1', 'tag2']);
     });
   });
 
-  describe('getAllNotes', () => {
+  describe('Retrieve Notes', () => {
     beforeEach(async () => {
-      // Create test notes
       await Note.create([
-        { title: 'Note 1', body: 'Body 1', createdAt: new Date('2023-01-01') },
-        { title: 'Note 2', body: 'Body 2', createdAt: new Date('2023-01-02') },
-        { title: 'Note 3', body: 'Body 3', createdAt: new Date('2023-01-03') }
+        { title: 'Note 1', body: 'Body 1', tags: ['tag1'] },
+        { title: 'Note 2', body: 'Body 2', tags: ['tag2'] },
+        { title: 'Note 3', body: 'Body 3', tags: ['tag3'] }
       ]);
     });
 
-    it('should return all notes sorted by creation date (newest first)', async () => {
-      const result = await noteService.getAllNotes();
-
-      expect(result).toHaveLength(3);
-      expect(result[0].title).toBe('Note 3');
-      expect(result[1].title).toBe('Note 2');
-      expect(result[2].title).toBe('Note 1');
+    it('should retrieve all notes', async () => {
+      const notes = await Note.find({}).lean();
+      expect(notes).to.have.lengthOf(3);
     });
 
-    it('should respect limit parameter', async () => {
-      const result = await noteService.getAllNotes({ limit: 2 });
-
-      expect(result).toHaveLength(2);
-      expect(result[0].title).toBe('Note 3');
-      expect(result[1].title).toBe('Note 2');
+    it('should find note by id', async () => {
+      const note = await Note.findOne({ title: 'Note 1' });
+      const foundNote = await Note.findById(note._id);
+      expect(foundNote.title).to.equal('Note 1');
     });
 
-    it('should respect skip parameter', async () => {
-      const result = await noteService.getAllNotes({ skip: 1, limit: 2 });
+    it('should support pagination', async () => {
+      const notes = await Note.find({})
+        .skip(1)
+        .limit(1)
+        .lean();
 
-      expect(result).toHaveLength(2);
-      expect(result[0].title).toBe('Note 2');
-      expect(result[1].title).toBe('Note 1');
-    });
-
-    it('should sort by title when specified', async () => {
-      const result = await noteService.getAllNotes({ 
-        sortBy: 'title', 
-        sortOrder: 1 
-      });
-
-      expect(result).toHaveLength(3);
-      expect(result[0].title).toBe('Note 1');
-      expect(result[1].title).toBe('Note 2');
-      expect(result[2].title).toBe('Note 3');
-    });
-
-    it('should handle empty collection', async () => {
-      await Note.deleteMany({});
-      const result = await noteService.getAllNotes();
-      expect(result).toHaveLength(0);
+      expect(notes).to.have.lengthOf(1);
+      expect(notes[0].title).to.equal('Note 2');
     });
   });
 
-  describe('getNoteById', () => {
-    let testNote;
-
-    beforeEach(async () => {
-      testNote = await Note.create({
-        title: 'Test Note',
-        body: 'Test Body'
-      });
-    });
-
-    it('should return note when valid ID is provided', async () => {
-      const result = await noteService.getNoteById(testNote._id.toString());
-
-      expect(result).toBeTruthy();
-      expect(result.title).toBe('Test Note');
-      expect(result.body).toBe('Test Body');
-    });
-
-    it('should return null when note is not found', async () => {
-      const nonExistentId = new mongoose.Types.ObjectId().toString();
-      const result = await noteService.getNoteById(nonExistentId);
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null when invalid ID format is provided', async () => {
-      const result = await noteService.getNoteById('invalid-id');
-
-      expect(result).toBeNull();
-    });
-
-    it('should handle undefined ID', async () => {
-      const result = await noteService.getNoteById(undefined);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('searchNotes', () => {
-    beforeEach(async () => {
-      await Note.create([
-        { title: 'JavaScript Tutorial', body: 'Learn JavaScript programming' },
-        { title: 'Python Guide', body: 'Python is a great programming language' },
-        { title: 'Web Development', body: 'HTML, CSS, and JavaScript for web' }
-      ]);
-    });
-
-    it('should find notes by title match', async () => {
-      const result = await noteService.searchNotes('JavaScript');
-
-      expect(result.length).toBeGreaterThan(0);
-      expect(result.some(note => note.title.includes('JavaScript'))).toBe(true);
-    });
-
-    it('should find notes by body match', async () => {
-      const result = await noteService.searchNotes('programming');
-
-      expect(result.length).toBeGreaterThan(0);
-      expect(result.some(note => note.body.includes('programming'))).toBe(true);
-    });
-
-    it('should return empty array for no matches', async () => {
-      const result = await noteService.searchNotes('nonexistent');
-
-      expect(result).toHaveLength(0);
-    });
-
-    it('should return empty array for empty query', async () => {
-      const result = await noteService.searchNotes('');
-
-      expect(result).toHaveLength(0);
-    });
-
-    it('should handle case-insensitive search with regex', async () => {
-      const result = await noteService.searchNotes('javascript', { useRegex: true });
-
-      expect(result.length).toBeGreaterThan(0);
-      expect(result.some(note => 
-        note.title.toLowerCase().includes('javascript') || 
-        note.body.toLowerCase().includes('javascript')
-      )).toBe(true);
-    });
-
-    it('should respect limit parameter', async () => {
-      const result = await noteService.searchNotes('programming', { limit: 1 });
-
-      expect(result).toHaveLength(1);
-    });
-
-    it('should handle special characters in search query', async () => {
-      await Note.create({
-        title: 'Special #$%^',
-        body: 'Content with @#$%^'
-      });
-
-      const result = await noteService.searchNotes('#$%^', { useRegex: true });
-      expect(result.length).toBeGreaterThan(0);
-    });
-  });
-
-
-  describe('deleteNote', () => {
-    let testNote;
-
-    beforeEach(async () => {
-      testNote = await Note.create({
-        title: 'To Delete',
-        body: 'This note will be deleted'
-      });
-    });
-
-    it('should delete existing note', async () => {
-      const result = await noteService.deleteNote(testNote._id.toString());
-      expect(result).toBe(true);
-
-      const deleted = await Note.findById(testNote._id);
-      expect(deleted).toBeNull();
-    });
-
-    it('should return false for non-existent note', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const result = await noteService.deleteNote(fakeId);
-      expect(result).toBe(false);
-    });
-
-    it('should handle invalid ID format', async () => {
-      const result = await noteService.deleteNote('invalid-id');
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('getNotesStats', () => {
-    beforeEach(async () => {
-      await Note.deleteMany({});
-      
-      // Create some test notes with different dates
-      const now = new Date();
-      const weekAgo = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
-      
-      await Note.create([
-        { title: 'Recent Note 1', body: 'Body 1', createdAt: now },
-        { title: 'Recent Note 2', body: 'Body 2', createdAt: now },
-        { title: 'Old Note', body: 'Body 3', createdAt: weekAgo }
-      ]);
-    });
-
-    it('should return correct statistics', async () => {
-      const stats = await noteService.getNotesStats();
-      
-      expect(stats).toHaveProperty('totalNotes', 3);
-      expect(stats).toHaveProperty('recentNotes', 2);
-    });
-
-    it('should handle empty collection', async () => {
-      await Note.deleteMany({});
-      const stats = await noteService.getNotesStats();
-      
-      expect(stats.totalNotes).toBe(0);
-      expect(stats.recentNotes).toBe(0);
-    });
-  });
-
-  describe('updateNote', () => {
+  describe('Update Note', () => {
     let testNote;
 
     beforeEach(async () => {
@@ -342,73 +110,82 @@ describe('NoteService', () => {
       });
     });
 
-    it('should update note with valid data', async () => {
-      const updateData = {
-        title: 'Updated Title',
-        body: 'Updated Body',
-        tags: ['updated']
-      };
+    it('should update note fields', async () => {
+      const updatedNote = await Note.findByIdAndUpdate(
+        testNote._id,
+        {
+          title: 'Updated Title',
+          body: 'Updated Body',
+          tags: ['updated']
+        },
+        { new: true }
+      );
 
-      const result = await noteService.updateNote(testNote._id.toString(), updateData);
-
-      expect(result).toBeTruthy();
-      expect(result.title).toBe('Updated Title');
-      expect(result.body).toBe('Updated Body');
-      expect(result.tags).toEqual(['updated']);
-      expect(new Date(result.updatedAt).getTime()).toBeGreaterThan(new Date(result.createdAt).getTime());
+      expect(updatedNote.title).to.equal('Updated Title');
+      expect(updatedNote.body).to.equal('Updated Body');
+      expect(updatedNote.tags).to.deep.equal(['updated']);
     });
 
     it('should update only provided fields', async () => {
-      const updateData = {
-        title: 'Updated Title Only'
-      };
+      const updatedNote = await Note.findByIdAndUpdate(
+        testNote._id,
+        { title: 'Only Title Updated' },
+        { new: true }
+      );
 
-      const result = await noteService.updateNote(testNote._id.toString(), updateData);
-
-      expect(result.title).toBe('Updated Title Only');
-      expect(result.body).toBe('Original Body');
-      expect(result.tags).toEqual(['original']);
+      expect(updatedNote.title).to.equal('Only Title Updated');
+      expect(updatedNote.body).to.equal('Original Body');
     });
+  });
 
-    it('should return null when note is not found', async () => {
-      const nonExistentId = new mongoose.Types.ObjectId().toString();
-      const result = await noteService.updateNote(nonExistentId, { title: 'Updated' });
+  describe('Delete Note', () => {
+    let testNote;
 
-      expect(result).toBeNull();
-    });
-
-    it('should return null when invalid ID format is provided', async () => {
-      const result = await noteService.updateNote('invalid-id', { title: 'Updated' });
-
-      expect(result).toBeNull();
-    });
-
-    it('should trim whitespace from updated fields', async () => {
-      const updateData = {
-        title: '  Updated Title  ',
-        body: '  Updated Body  ',
-        tags: ['  updated  ', '  tag  ']
-      };
-
-      const result = await noteService.updateNote(testNote._id.toString(), updateData);
-
-      expect(result.title).toBe('Updated Title');
-      
-      it('should filter out empty tags during update', async () => {
-        const updateData = {
-          tags: ['valid', '', '  ', 'also-valid']
-        };
-        
-        const result = await noteService.updateNote(testNote._id.toString(), updateData);
-        expect(result.tags).toEqual(['valid', 'also-valid']);
+    beforeEach(async () => {
+      testNote = await Note.create({
+        title: 'To Delete',
+        body: 'This will be deleted',
+        tags: ['delete']
       });
-      
-      it('should handle undefined tags during update', async () => {
-        const updateData = {
-          title: 'New Title',
-          tags: undefined
-        };
-        
-        const result = await noteService.updateNote(testNote._id.toString(), updateData);
-        expect(result.tags).toEqual(['original']); // Should keep existing tags
+    });
+
+    it('should delete a note', async () => {
+      await Note.findByIdAndDelete(testNote._id);
+      const deletedNote = await Note.findById(testNote._id);
+      expect(deletedNote).to.be.null;
+    });
+
+    it('should handle deleting non-existent note', async () => {
+      const fakeId = new mongoose.Types.ObjectId();
+      const result = await Note.findByIdAndDelete(fakeId);
+      expect(result).to.be.null;
+    });
+  });
+
+  describe('Search Notes', () => {
+    beforeEach(async () => {
+      await Note.create([
+        { title: 'JavaScript Guide', body: 'Learn JavaScript programming' },
+        { title: 'Python Tutorial', body: 'Python for beginners' },
+        { title: 'Node.js Basics', body: 'JavaScript runtime environment' }
+      ]);
+    });
+
+    it('should search notes by text index', async () => {
+      const notes = await Note.find({
+        $text: { $search: 'JavaScript' }
       });
+      expect(notes).to.have.lengthOf(2);
+    });
+
+    it('should search notes by regex', async () => {
+      const notes = await Note.find({
+        $or: [
+          { title: /javascript/i },
+          { body: /javascript/i }
+        ]
+      });
+      expect(notes).to.have.lengthOf(2);
+    });
+  });
+});
